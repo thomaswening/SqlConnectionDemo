@@ -1,3 +1,9 @@
+
+// useful links
+// https://docs.microsoft.com/en-us/dotnet/framework/data/adonet/retrieving-and-modifying-data
+// https://www.c-sharpcorner.com/UploadFile/201fc1/sql-server-database-connection-in-csharp-using-adonet/
+// https://www.guru99.com/c-sharp-access-database.html
+
 using System.Data.SqlClient;
 using System.Text;
 
