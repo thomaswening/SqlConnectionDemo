@@ -1,13 +1,22 @@
 using System.Data.SqlClient;
+using System.Text;
 
 namespace SqlConnectionDemo
 {
     public partial class SqlConnectionDemoForm : Form
     {
+        #region Fields
+
+        // Declare the connection string for the SQL server instance - in this case it can even be modified in the form
         private readonly string defaultConnectionString = @"Server=localhost\MSSQLSERVER01;Database=test;Trusted_Connection=True;";
+
         private string connectionString = string.Empty;
         private string firstName = string.Empty;
         private string lastName = string.Empty;
+
+        #endregion Fields
+
+        #region Constructors
 
         public SqlConnectionDemoForm()
         {
@@ -15,9 +24,56 @@ namespace SqlConnectionDemo
             BindData();
         }
 
+        #endregion Constructors
+
+        #region Methods
+
         private void BindData()
         {
             txtUserInputConnectionString.Text = defaultConnectionString;
+        }
+
+        private void btnDelete_Click(object sender, EventArgs e)
+        {
+            UnbindData();
+
+            if (ValidateData())
+            {
+                string? id = GetId(firstName, lastName);
+
+                if (id is null)
+                {
+                    MessageBox.Show("No matching records found.");
+                }
+                else
+                {
+                    try
+                    {
+                        ExecuteQuery(Modes.DELETE, id);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Something went wrong.\n Error message: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        private void btnInsert_Click(object sender, EventArgs e)
+        {
+            UnbindData();
+
+            if (ValidateData())
+            {
+                try
+                {
+                    ExecuteQuery(Modes.INSERT, id: "", firstName, lastName);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Something went wrong.\n Error message: {ex.Message}");
+                }
+            }
         }
 
         private void btnOpenConnection_Click(object sender, EventArgs e)
@@ -40,40 +96,84 @@ namespace SqlConnectionDemo
 
             MessageBox.Show(result);
         }
-
-        private void btnInsert_Click(object sender, EventArgs e)
+        private void btnUpdate_Click(object sender, EventArgs e)
         {
             UnbindData();
 
             if (ValidateData())
             {
-                try
+                string? id = GetId(firstName, lastName);
+
+                if (id is null)
                 {
-                    using SqlConnection connection = new(connectionString);
-
-                    string query = $"INSERT INTO persons (first_name, last_name) VALUES ('{firstName}', '{lastName}')";
-                    SqlCommand command = new(query, connection);
-
-                    connection.Open();
-                    SqlDataAdapter adapter = new()
-                    {
-                        InsertCommand = command
-                    };
-                    adapter.InsertCommand.ExecuteNonQuery();
-
-                    command.Dispose();
-                    connection.Close();
-
-                    MessageBox.Show("The record was successfully inserted.");
+                    MessageBox.Show("No matching records found.");
                 }
-                catch (Exception ex)
+                else
                 {
-                    MessageBox.Show($"Something went wrong.\n Error message: {ex.Message}");
+                    UpdateForm updateForm = new(firstName, lastName);
+                    updateForm.ShowDialog();
+
+                    if (!updateForm.IsCanceled)
+                    {
+                        try
+                        {
+                            ExecuteQuery(Modes.UPDATE, id, updateForm.FirstName, updateForm.LastName);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Something went wrong.\n Error message: {ex.Message}");
+                        }
+                    }
                 }
             }
         }
 
-        private void UnbindData() 
+        /// <summary>
+        /// Looks for records in table persons with matching values for first_name, last_name.
+        /// </summary>
+        /// <param name="first_name"></param>
+        /// <param name="last_name"></param>
+        /// <returns>The id of the first such record that is found</returns>
+        private string? GetId(string first_name = "", string last_name = "")
+        {
+            string? id = null;
+
+            try
+            {
+                // First, we open a SqlConnection with the connection string
+                using SqlConnection connection = new(connectionString);
+
+                // Then we define a SELECT query as a string...
+                string query = $"SELECT id FROM persons WHERE first_name='{first_name}' AND last_name='{last_name}'";
+
+                // ... and create a new SqlCommand with it
+                SqlCommand command = new(query, connection);
+
+                // We open the SqlConnection and create a SqlDataReader which reads the query result from the SQL instance
+                connection.Open();
+                SqlDataReader reader = command.ExecuteReader();
+
+                // If the query returned any records...
+                if (reader.HasRows)
+                {
+                    // ... we read the first one of the records and get the value of type object of the 0th column and convert it into a string.
+                    reader.Read();
+                    id = reader.GetValue(0).ToString();
+                }
+
+                // At last, we close the SqlDataReader and the SqlConnection.
+                reader.Close();
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Something went wrong.\n Error message: {ex.Message}");
+            }
+
+            return id;
+        }
+
+        private void UnbindData()
         {
             if (!string.IsNullOrEmpty(txtUserInputConnectionString.Text))
             {
@@ -99,124 +199,74 @@ namespace SqlConnectionDemo
             return true;
         }
 
-        private void btnUpdate_Click(object sender, EventArgs e)
+        private void ExecuteQuery(Modes mode, string id, params string[] values)
         {
-            UnbindData();
-
-            if (ValidateData())
-            {
-                string? id = GetId(firstName, lastName);
-
-                if (id is null)
-                {
-                    MessageBox.Show("No matching records found.");
-                }
-                else
-                {
-                    UpdateForm updateForm = new(id, firstName, lastName);
-                    updateForm.ShowDialog();
-
-                    if (!updateForm.IsCanceled)
-                    {
-                        try
-                        {
-                            using SqlConnection connection = new(connectionString);
-
-                            string query = $"UPDATE persons SET first_name='{updateForm.FirstName}', last_name='{updateForm.LastName}' WHERE id='{id}'";
-                            SqlCommand command = new(query, connection);
-
-                            connection.Open();
-                            SqlDataAdapter adapter = new()
-                            {
-                                UpdateCommand = command
-                            };
-                            adapter.UpdateCommand.ExecuteNonQuery();
-
-                            command.Dispose();
-                            connection.Close();
-
-                            MessageBox.Show("The record was successfully updated.");
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show($"Something went wrong.\n Error message: {ex.Message}");
-                        }
-                    }
-                }
-            }
-        }
-
-        private string? GetId(string first_name = "", string last_name = "")
-        {
-            string? id = null;
-
             try
             {
+                // Again, first the connection
                 using SqlConnection connection = new(connectionString);
 
-                string query = $"SELECT id FROM persons WHERE first_name='{first_name}' AND last_name='{last_name}'";
+                // Depending on the non-query command (INS, UPD, DEL) we define a (non-)query string...
+                string query = mode switch
+                {
+                    Modes.INSERT => $"INSERT INTO persons (first_name, last_name) VALUES ('{values[0]}', '{values[1]}')",
+                    Modes.UPDATE => $"UPDATE persons SET first_name='{values[0]}', last_name='{values[1]}' WHERE id='{id}'",
+                    Modes.DELETE => $"DELETE FROM persons WHERE id='{id}'",
+                    _ => throw new NotImplementedException(),
+                };
+
+                // ... and use it to construct a command.
                 SqlCommand command = new(query, connection);
 
+                // This time, after opening the connection we instationate a SqlDataAdapter...
                 connection.Open();
-                SqlDataReader reader = command.ExecuteReader();
+                SqlDataAdapter adapter = new();
 
-                if (reader.HasRows)
+                // ..., save the command in the appropriate {Insert/Update/Delete}Command property and execute that.
+                switch (mode)
                 {
-                    while (reader.Read())
-                    {
-                        id = reader.GetValue(0).ToString();
-                    }
-                }
-
-                connection.Close(); 
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Something went wrong.\n Error message: {ex.Message}");
-            }
-
-            return id;
-        }
-
-        private void btnDelete_Click(object sender, EventArgs e)
-        {
-            UnbindData();
-
-            if (ValidateData())
-            {
-                string? id = GetId(firstName, lastName);
-
-                if (id is null)
-                {
-                    MessageBox.Show("No matching records found.");
-                }
-                else
-                {
-                    try
-                    {
-                        using SqlConnection connection = new(connectionString);
-
-                        string query = $"DELETE FROM persons WHERE id='{id}'";
-                        SqlCommand command = new(query, connection);
-
-                        connection.Open();
-                        SqlDataAdapter adapter = new()
-                        {
-                            UpdateCommand = command
-                        };
+                    case Modes.INSERT:
+                        adapter.InsertCommand = command;
+                        adapter.InsertCommand.ExecuteNonQuery();
+                        break;
+                    case Modes.UPDATE:
+                        adapter.UpdateCommand = command;
                         adapter.UpdateCommand.ExecuteNonQuery();
-
-                        command.Dispose();
-                        connection.Close();
-
-                        MessageBox.Show("The record was successfully deleted.");
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Something went wrong.\n Error message: {ex.Message}");
-                    }
+                        break;
+                    case Modes.DELETE:
+                        adapter.DeleteCommand = command;
+                        adapter.DeleteCommand.ExecuteNonQuery();
+                        break;
                 }
+
+                // At last, we close the connection.
+                connection.Close();
+
+                StringBuilder message = new("The record was successfully ");
+
+                switch (mode)
+                {
+                    case Modes.INSERT:
+                        message.Append("inserted.");
+                        break;
+
+                    case Modes.UPDATE:
+                        message.Append("updated.");
+                        break;
+
+                    case Modes.DELETE:
+                        message.Append("deleted.");
+                        break;
+                }
+
+                MessageBox.Show(message.ToString());
+            }
+            catch (Exception)
+            {
+                throw;
             }
         }
+
+        #endregion Methods
     }
 }

@@ -1,21 +1,29 @@
-using System.Data.SqlClient;
-
 namespace SqlConnectionDemo
 {
     public partial class UpdateForm : Form
     {
-        private string firstName = string.Empty;
-        private string lastName = string.Empty;
-        private string id = string.Empty;
-        private bool isCanceled = false;
+        #region Fields
 
-        public string LastName => lastName;
+        private string firstName = string.Empty;
+        private bool isCanceled = false;
+        private string lastName = string.Empty;
+
+        #endregion Fields
+
+        #region Properties
+
         public string FirstName => firstName;
+
         public bool IsCanceled => isCanceled;
 
-        public UpdateForm(string id, string firstName, string lastName)
+        public string LastName => lastName;
+
+        #endregion Properties
+
+        #region Constructors
+
+        public UpdateForm(string firstName, string lastName)
         {
-            this.id = id;
             this.firstName = firstName;
             this.lastName = lastName;
 
@@ -23,13 +31,32 @@ namespace SqlConnectionDemo
             BindData();
         }
 
+        #endregion Constructors
+
+        #region Methods
+
         private void BindData()
         {
             txtFirstName.Text = firstName;
             txtLastName.Text = lastName;
         }
 
-        private void UnbindData() 
+        private void btnCancel_Click(object sender, EventArgs e)
+        {
+            isCanceled = true;
+            this.Close();
+        }
+
+        private void btnOK_Click(object sender, EventArgs e)
+        {
+            if (ValidateData())
+            {
+                UnbindData();
+                this.Close();
+            }
+        }
+
+        private void UnbindData()
         {
             firstName = txtFirstName.Text;
             lastName = txtLastName.Text;
@@ -46,19 +73,6 @@ namespace SqlConnectionDemo
             return true;
         }
 
-        private void btnOK_Click(object sender, EventArgs e)
-        {
-            if (ValidateData())
-            {
-                UnbindData();
-                this.Close();
-            }
-        }
-
-        private void btnCancel_Click(object sender, EventArgs e)
-        {
-            isCanceled = true;
-            this.Close();
-        }
+        #endregion Methods
     }
 }
