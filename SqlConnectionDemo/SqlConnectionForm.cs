@@ -144,14 +144,16 @@ namespace SqlConnectionDemo
                 using SqlConnection connection = new(connectionString);
 
                 // Then we define a SELECT query as a string...
-                string query = $"SELECT id FROM persons WHERE first_name='{first_name}' AND last_name='{last_name}'";
+                string query = "SELECT id FROM persons WHERE first_name='@first_name' AND last_name='@last_name'";
 
                 // ... and create a new SqlCommand with it
                 SqlCommand command = new(query, connection);
+                command.Parameters.Add(new SqlParameter("first_name", firstName));
+                command.Parameters.Add(new SqlParameter("last_name", lastName));
 
                 // We open the SqlConnection and create a SqlDataReader which reads the query result from the SQL instance
                 connection.Open();
-                SqlDataReader reader = command.ExecuteReader();
+                using SqlDataReader reader = command.ExecuteReader();
 
                 // If the query returned any records...
                 if (reader.HasRows)
@@ -161,9 +163,11 @@ namespace SqlConnectionDemo
                     id = reader.GetValue(0).ToString();
                 }
 
-                // At last, we close the SqlDataReader and the SqlConnection.
-                reader.Close();
-                connection.Close();
+                // Because we used the 'using' keyword for instantiating the SqlConnection and the SqlDataReader,
+                // the following two lines of code are superfluous.
+
+                //reader.Close();
+                //connection.Close();
             }
             catch (Exception ex)
             {
@@ -206,41 +210,51 @@ namespace SqlConnectionDemo
                 // Again, first the connection
                 using SqlConnection connection = new(connectionString);
 
-                // Depending on the non-query command (INS, UPD, DEL) we define a (non-)query string...
+                // Depending on the non-query command (INS, UPD, DEL) we define a (non-)query string.
+                // To reduce the risk of a SQL injection attack, we define SqlParameter variables preceded by a '@'.
                 string query = mode switch
                 {
-                    Modes.INSERT => $"INSERT INTO persons (first_name, last_name) VALUES ('{values[0]}', '{values[1]}')",
-                    Modes.UPDATE => $"UPDATE persons SET first_name='{values[0]}', last_name='{values[1]}' WHERE id='{id}'",
-                    Modes.DELETE => $"DELETE FROM persons WHERE id='{id}'",
+                    Modes.INSERT => "INSERT INTO persons (first_name, last_name) VALUES ('@first_name', '@last_name')",
+                    Modes.UPDATE => "UPDATE persons SET first_name='@first_name', last_name='@last_name' WHERE id=@id",
+                    Modes.DELETE => "DELETE FROM persons WHERE id=@id",
                     _ => throw new NotImplementedException(),
                 };
 
                 // ... and use it to construct a command.
                 SqlCommand command = new(query, connection);
 
-                // This time, after opening the connection we instationate a SqlDataAdapter...
+                // This time, after opening the connection we instantiate a SqlDataAdapter...
                 connection.Open();
                 SqlDataAdapter adapter = new();
 
-                // ..., save the command in the appropriate {Insert/Update/Delete}Command property and execute that.
+                // ..., replace the placeholders in the non-query strings with a SqlParameter,
+                // save the command in the appropriate {Insert/Update/Delete}Command property and execute that.
                 switch (mode)
                 {
                     case Modes.INSERT:
+                        command.Parameters.Add(new SqlParameter("first_name", values[0])); // e.g. replaces '@first_name' with the value of values[0]
+                        command.Parameters.Add(new SqlParameter("last_name", values[1]));
+
                         adapter.InsertCommand = command;
                         adapter.InsertCommand.ExecuteNonQuery();
                         break;
+
                     case Modes.UPDATE:
+                        command.Parameters.Add(new SqlParameter("first_name", values[0]));
+                        command.Parameters.Add(new SqlParameter("last_name", values[1]));
+                        command.Parameters.Add(new SqlParameter("id", id));
+
                         adapter.UpdateCommand = command;
                         adapter.UpdateCommand.ExecuteNonQuery();
                         break;
+
                     case Modes.DELETE:
+                        command.Parameters.Add(new SqlParameter("id", id));
+
                         adapter.DeleteCommand = command;
                         adapter.DeleteCommand.ExecuteNonQuery();
                         break;
                 }
-
-                // At last, we close the connection.
-                connection.Close();
 
                 StringBuilder message = new("The record was successfully ");
 
